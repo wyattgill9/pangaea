@@ -9,20 +9,20 @@ on:
 jobs:
   build:
     runs-on: ${{ matrix.os }}
-    continue-on-error: true
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Install make on macOS
-      if: runner.os == 'macOS'
-      run: |
-        brew install make
-    - name: Check make version
-      run: make --version
-    - name: Build
-      run: make
-    - name: Clean
-      run: make clean
+      - uses: actions/checkout@v4
+
+      - name: Setup SDL3
+        uses: libsdl-org/setup-sdl@main
+        with:
+          version: 3-latest
+
+      - name: Build
+        run: make
+
+      - name: Clean
+        run: make clean
