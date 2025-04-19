@@ -1,0 +1,28 @@
+name: C CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install make on macOS
+      if: runner.os == 'macOS'
+      run: |
+        brew install make
+    - name: Check make version
+      run: make --version
+    - name: Build
+      run: make
+    - name: Clean
+      run: make clean
