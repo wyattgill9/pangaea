@@ -1,240 +1,187 @@
-
-#include <SDL3/SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <time.h>
+#include <SDL3/SDL.h>
 
-#define WINDOW_WIDTH 800
-#define WINDOW_HEIGHT 600
-#define MAX_PARTICLES 5000
-#define PARTICLE_RADIUS 5
-#define GRAVITY 0.5
-#define BOUNCE 0.8
-#define FRICTION 0.99
+#define WIDTH 800
+#define HEIGHT 600
+#define SCALE 200
 
 typedef struct {
-    double x, y;        // Position
-    double vx, vy;      // Velocity
-    double mass;        // Mass
-    int r, g, b;        // Color
-} Particle;
+    double x, y, z;
+} Point;
 
-Particle particles[MAX_PARTICLES];
-int num_particles = 0;
+typedef struct {
+    int rows;
+    int cols;
+    double** data;
+} Matrix;
 
-void init_particle(Particle* p, double x, double y) {
-    p->x = x;
-    p->y = y;
-    p->vx = (rand() % 200 - 100) / 100.0;  // Random initial velocity
-    p->vy = (rand() % 200 - 100) / 100.0;
-    p->mass = 1.0;
-    p->r = rand() % 255;
-    p->g = rand() % 255;
-    p->b = rand() % 255;
+Point make_point(double x, double y, double z) {
+    Point p = { x, y, z };
+    return p;
 }
 
-void update_particle(Particle* p) {
-    // Apply gravity
-    p->vy += GRAVITY;
-    
-    // Update position
-    p->x += p->vx;
-    p->y += p->vy;
-    
-    // Apply friction
-    p->vx *= FRICTION;
-    p->vy *= FRICTION;
-    
-    // Handle collisions with walls
-    if (p->x < PARTICLE_RADIUS) {
-        p->x = PARTICLE_RADIUS;
-        p->vx = -p->vx * BOUNCE;
+Matrix create_matrix(int rows, int cols) {
+    Matrix m;
+    m.rows = rows;
+    m.cols = cols;
+    m.data = malloc(rows * sizeof(double*));
+    for (int i = 0; i < rows; i++) {
+        m.data[i] = calloc(cols, sizeof(double));
     }
-    if (p->x > WINDOW_WIDTH - PARTICLE_RADIUS) {
-        p->x = WINDOW_WIDTH - PARTICLE_RADIUS;
-        p->vx = -p->vx * BOUNCE;
-    }
-    if (p->y < PARTICLE_RADIUS) {
-        p->y = PARTICLE_RADIUS;
-        p->vy = -p->vy * BOUNCE;
-    }
-    if (p->y > WINDOW_HEIGHT - PARTICLE_RADIUS) {
-        p->y = WINDOW_HEIGHT - PARTICLE_RADIUS;
-        p->vy = -p->vy * BOUNCE;
-    }
+    return m;
 }
 
-void handle_particle_collisions() {
-    for (int i = 0; i < num_particles; i++) {
-        for (int j = i + 1; j < num_particles; j++) {
-            Particle* p1 = &particles[i];
-            Particle* p2 = &particles[j];
-            
-            double dx = p2->x - p1->x;
-            double dy = p2->y - p1->y;
-            double distance = sqrt(dx*dx + dy*dy);
-            
-            if (distance < 2 * PARTICLE_RADIUS) {
-                // Collision detected
-                double angle = atan2(dy, dx);
-                double sin_a = sin(angle);
-                double cos_a = cos(angle);
-                
-                // Rotate velocities
-                double vx1 = p1->vx * cos_a + p1->vy * sin_a;
-                double vy1 = -p1->vx * sin_a + p1->vy * cos_a;
-                double vx2 = p2->vx * cos_a + p2->vy * sin_a;
-                double vy2 = -p2->vx * sin_a + p2->vy * cos_a;
-                
-                // Elastic collision
-                double m1 = p1->mass;
-                double m2 = p2->mass;
-                double v1 = vx1;
-                double v2 = vx2;
-                
-                vx1 = ((m1 - m2) * v1 + 2 * m2 * v2) / (m1 + m2);
-                vx2 = ((m2 - m1) * v2 + 2 * m1 * v1) / (m1 + m2);
-                
-                // Rotate back
-                p1->vx = vx1 * cos_a - vy1 * sin_a;
-                p1->vy = vx1 * sin_a + vy1 * cos_a;
-                p2->vx = vx2 * cos_a - vy2 * sin_a;
-                p2->vy = vx2 * sin_a + vy2 * cos_a;
-                
-                // Move particles apart
-                double overlap = 2 * PARTICLE_RADIUS - distance;
-                double move_x = (overlap * cos_a) / 2;
-                double move_y = (overlap * sin_a) / 2;
-                
-                p1->x -= move_x;
-                p1->y -= move_y;
-                p2->x += move_x;
-                p2->y += move_y;
+void free_matrix(Matrix* m) {
+    for (int i = 0; i < m->rows; i++) {
+        free(m->data[i]);
+    }
+    free(m->data);
+}
+
+Matrix dot(Matrix a, Matrix b) {
+    Matrix result = create_matrix(a.rows, b.cols);
+    for (int i = 0; i < a.rows; i++) {
+        for (int j = 0; j < b.cols; j++) {
+            for (int k = 0; k < b.rows; k++) {
+                result.data[i][j] += a.data[i][k] * b.data[k][j];
             }
         }
     }
+    return result;
 }
 
-void render_particles(SDL_Renderer* renderer) {
-    for (int i = 0; i < num_particles; i++) {
-        Particle* p = &particles[i];
-        SDL_SetRenderDrawColor(renderer, p->r, p->g, p->b, 255);
+Point transform(Matrix m, Point p) {
+    Matrix vec = create_matrix(3, 1);
+    vec.data[0][0] = p.x;
+    vec.data[1][0] = p.y;
+    vec.data[2][0] = p.z;
 
-        for (int dx = -PARTICLE_RADIUS; dx <= PARTICLE_RADIUS; dx++) {
-            for (int dy = -PARTICLE_RADIUS; dy <= PARTICLE_RADIUS; dy++) {
-                if (dx*dx + dy*dy <= PARTICLE_RADIUS*PARTICLE_RADIUS) {
-                    SDL_RenderPoint(renderer, p->x + dx, p->y + dy);
-                }
-            }
-        }
-    }
+    Matrix result = dot(m, vec);
+    Point out = make_point(result.data[0][0], result.data[1][0], result.data[2][0]);
+
+    free_matrix(&vec);
+    free_matrix(&result);
+    return out;
 }
 
-int main(int argc, char* argv[]) {
+Point translate(Point shift, Point p) {
+    return make_point(p.x + shift.x, p.y + shift.y, p.z + shift.z);
+}
+
+void connect(SDL_Renderer* renderer, Point* points, int i, int j) {
+    SDL_RenderLine(renderer, points[i].x, points[i].y, points[j].x, points[j].y);
+}
+
+Matrix get_rotation_matrix() {
+    double alpha = 0.001;
+    Matrix rx = create_matrix(3, 3);
+    rx.data[0][0] = 1;
+    rx.data[1][1] = cos(alpha);
+    rx.data[1][2] = -sin(alpha);
+    rx.data[2][1] = sin(alpha);
+    rx.data[2][2] = cos(alpha);
+
+    double beta = 0.002;
+    Matrix ry = create_matrix(3, 3);
+    ry.data[0][0] = cos(beta);
+    ry.data[0][2] = sin(beta);
+    ry.data[1][1] = 1;
+    ry.data[2][0] = -sin(beta);
+    ry.data[2][2] = cos(beta);
+
+    double gamma = 0.003;
+    Matrix rz = create_matrix(3, 3);
+    rz.data[0][0] = cos(gamma);
+    rz.data[0][1] = -sin(gamma);
+    rz.data[1][0] = sin(gamma);
+    rz.data[1][1] = cos(gamma);
+    rz.data[2][2] = 1;
+
+    Matrix tmp = dot(ry, rx);
+    Matrix result = dot(rz, tmp);
+
+    free_matrix(&rx);
+    free_matrix(&ry);
+    free_matrix(&rz);
+    free_matrix(&tmp);
+
+    return result;
+}
+
+int main() {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-        printf("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
+        printf("SDL Init Error: %s\n", SDL_GetError());
         return 1;
     }
 
-    SDL_Window* window = SDL_CreateWindow(
-        "Particle Simulator",
-        WINDOW_WIDTH,
-        WINDOW_HEIGHT,
-        SDL_WINDOW_RESIZABLE
-    );
-    
-    if (!window) {
-        printf("Window could not be created! SDL_Error: %s\n", SDL_GetError());
+    SDL_Window* window = NULL;
+    SDL_Renderer* renderer = NULL;
+
+    if (SDL_CreateWindowAndRenderer("GAME", WIDTH, HEIGHT, 0, &window, &renderer) < 0) {
+        printf("SDL Window/Renderer Error: %s\n", SDL_GetError());
         SDL_Quit();
         return 1;
     }
 
-    SDL_Renderer* renderer = SDL_CreateRenderer(window, NULL);
-    if (!renderer) {
-        printf("Renderer could not be created! SDL_Error: %s\n", SDL_GetError());
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
-    }
-
-    // Initialize random seed
-    srand(time(NULL));
+    Point points[4] = {
+        make_point(1, 1, 1),     // Vertex A
+        make_point(-1, -1, 1),   // Vertex B
+        make_point(-1, 1, -1),   // Vertex C
+        make_point(1, -1, -1)    // Vertex D
+    };    
     
-    // Create initial particles
-    for (int i = 0; i < 50; i++) {
-        if (num_particles < MAX_PARTICLES) {
-            init_particle(&particles[num_particles],
-                         rand() % (WINDOW_WIDTH - 2*PARTICLE_RADIUS) + PARTICLE_RADIUS,
-                         rand() % (WINDOW_HEIGHT - 2*PARTICLE_RADIUS) + PARTICLE_RADIUS);
-            num_particles++;
-        }
+    Point screenShift = make_point(WIDTH / 2, HEIGHT / 2, 0);
+    Point screenShiftOpposite = make_point(-WIDTH / 2, -HEIGHT / 2, 0);
+
+    for (int i = 0; i < 8; i++) {
+        points[i].x = SCALE * points[i].x + screenShift.x;
+        points[i].y = SCALE * points[i].y + screenShift.y;
+        points[i].z = SCALE * points[i].z + screenShift.z;
     }
 
-    int quit = 0;
-    SDL_Event e;
-    int mouse_x = 0, mouse_y = 0;
-    int is_dragging = 0;
-    Uint32 last_particle_time = 0;
-    const Uint32 particle_delay = 16;
+    Matrix rotationXYZ = get_rotation_matrix();
 
-    while (!quit) {
-        while (SDL_PollEvent(&e) != 0) {
-            if (e.type == SDL_EVENT_QUIT) {
-                quit = 1;
-            } else if (e.type == SDL_EVENT_MOUSE_MOTION) {
-                mouse_x = e.motion.x;
-                mouse_y = e.motion.y;
-
-                if (is_dragging && num_particles < MAX_PARTICLES) {
-                    Uint32 current_time = SDL_GetTicks();
-                    if (current_time - last_particle_time >= particle_delay) {
-                        
-                        for (int i = 0; i < 3; i++) { 
-                            if (num_particles < MAX_PARTICLES) {
-                                int offset_x = (rand() % 11) - 5; 
-                                int offset_y = (rand() % 11) - 5;
-                                init_particle(&particles[num_particles], 
-                                            mouse_x + offset_x, 
-                                            mouse_y + offset_y);
-                                num_particles++;
-                            }
-                        }
-                        last_particle_time = current_time;
-                    }
-                }
-            } else if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
-                if (e.button.button == SDL_BUTTON_LEFT) {
-                    is_dragging = 1;
-                    if (num_particles < MAX_PARTICLES) {
-                        init_particle(&particles[num_particles], mouse_x, mouse_y);
-                        num_particles++;
-                    }
-                }
-            } else if (e.type == SDL_EVENT_MOUSE_BUTTON_UP) {
-                if (e.button.button == SDL_BUTTON_LEFT) {
-                    is_dragging = 0;
-                }
+    SDL_Event event;
+    int running = 1;
+    while (running) {
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_EVENT_QUIT) {
+                running = 0;
             }
         }
 
-        for (int i = 0; i < num_particles; i++) {
-            update_particle(&particles[i]);
+        for (int i = 0; i < 8; i++) {
+            points[i] = translate(screenShiftOpposite, points[i]);
+            points[i] = transform(rotationXYZ, points[i]);
+            points[i] = translate(screenShift, points[i]);
         }
 
-        handle_particle_collisions();
-
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         SDL_RenderClear(renderer);
-        render_particles(renderer);
-        SDL_RenderPresent(renderer);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+ 
+        int edges[6][2] = {
+            {0, 1},
+            {0, 2},
+            {0, 3},
+            {1, 2},
+            {1, 3},
+            {2, 3}
+        };
+
+        for (int i = 0; i < 6; i++) {
+            connect(renderer, points, edges[i][0], edges[i][1]);
+        }
         
-        SDL_Delay(16); // Cap at ~60 FPS
+        SDL_RenderPresent(renderer);
+        SDL_Delay(3);
     }
 
-    SDL_DestroyRenderer(renderer);
+    free_matrix(&rotationXYZ);
     SDL_DestroyWindow(window);
     SDL_Quit();
-
     return 0;
 }
+
