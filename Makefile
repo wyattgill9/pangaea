@@ -1,13 +1,16 @@
 CC = GCC
-CFLAGS = -Wall -std=c11 -I/opt/homebrew/Cellar/sdl3/3.2.10/include -D_REENTRANT
-LDFLAGS = -L/opt/homebrew/Cellar/sdl3/3.2.10/lib -lSDL3
+CFLAGS = -Wall -std=c11 -O2 -I/opt/homebrew/include
+LDFLAGS = -L/opt/homebrew/lib -lglfw -lvulkan -ldl -lpthread
 SRC = src/main.c
-OUT = bin/pangaea
+OUT = ./bin/pangaea
 
 all: $(OUT)
 
 $(OUT): $(SRC)
+	mkdir -p $(dir $(OUT))
 	$(CC) $(CFLAGS) $(SRC) -o $(OUT) $(LDFLAGS)
+
+.PHONY: test clean
 
 clean:
 	rm -f $(OUT)
