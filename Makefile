@@ -1,7 +1,7 @@
-CC = GCC
-CFLAGS = -Wall -std=c11 -O2 -I/opt/homebrew/include
+CC = G++
+CFLAGS = -Wall -std=c++20 -O2 -I/opt/homebrew/include
 LDFLAGS = -L/opt/homebrew/lib -lglfw -lvulkan -ldl -lpthread
-SRC = src/main.c
+SRC = src/main.cpp
 OUT = ./bin/pangaea
 
 all: $(OUT)
