@@ -1,6 +1,7 @@
 CC = G++
 CFLAGS = -Wall -std=c++20 -O2 -I/opt/homebrew/include
-LDFLAGS = -L/opt/homebrew/lib -lglfw -lvulkan -ldl -lpthread
+# LDFLAGS = -L/opt/homebrew/lib -lglfw -lvulkan -ldl -lpthread
+LDFLAGS =
 SRC = src/main.cpp
 OUT = ./bin/pangaea
 
