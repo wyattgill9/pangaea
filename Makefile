@@ -1,9 +1,11 @@
-CC = G++
+CC = g++
 
 CFLAGS = -Wall -std=c++20 -O2 \
 	-I$(CURDIR)/submodules/SDL3/include \
-	-I$(CURDIR)/submodules/bgfx/include \
-	-I$(CURDIR)/submodules/glm
+	-I$(CURDIR)/submodules/vulkan/include \
+	-I$(CURDIR)/submodules/glm \
+	-I$(CURDIR)/submodules/imgui \
+	-I$(CURDIR)/submodules/imgui/backends
 
 OUT = ./bin/pangaea
 
@@ -19,4 +21,3 @@ $(OUT): $(SRC)
 
 clean:
 	rm -f $(OUT)
-
